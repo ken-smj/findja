@@ -2,30 +2,54 @@
 # coding: cp932
 
 require 'nkf'
+require 'optparse'
 
-# CODES = {
-#   NKF::JIS      => "J",
-#   NKF::EUC      => "E",
-#   NKF::SJIS     => "S",
-#   NKF::UTF8     => "U",
-#   NKF::BINARY   => "B",
-#   NKF::ASCII    => "A",
-#   NKF::UNKNOWN  => "?",
-# }
+def cmdline
+  args = {}
+  OptionParser.new do |parser|
+    parser.on('-f', '--file', 'ファイル名を出力する。'){|v| args[:filename] = v}
+    parser.on('-l', '--line', '行番号を出力する。'){|v| args[:lineno] = v}
+    parser.on('-c', '--code', 'エンコード名を出力する。'){|v| args[:encode] = v}
+    parser.on('-d VALUE', '--dir VALUE', 'トップディレクトリの指定。なければカレントディレクトリ以下。'){|v| args[:dir] = v}
+    parser.on('-s [VALUE]', '--split [VALUE]', '区切り文字。(デフォルトはカンマ)'){|v| args[:split] = v}
+    parser.parse!(ARGV)
+  end 
+  args
+end
 
-Dir::glob("**/*.{c,h,rc,cpp,hpp}").each {|f|
-  # ここにマッチしたファイルに対して行う処理を記述する
-  # この例ではファイル名とファイルのサイズを標準出力へ出力している
-  puts "#{f}: #{File::stat(f).size} bytes"
+args = cmdline
+if !args[:split] then args[:split] = ","; end
+if !args[:dir] then
+  args[:dir] = "**"
+else
+  args[:dir] = args[:dir].gsub(/\\/, "/")
+  args[:dir].slice!(/\/$/)
+end
+
+Dir::glob("#{args[:dir]}/*.{c,h,rc,cpp,hpp}").each {|f|
   File::open(f) {|file|
     no = 1
     while line = file.gets
-      line.slice!(/\/\/.*$/)
-      code = NKF.guess(line)
-      if code != NKF::ASCII
-        # print no, ":", CODES.fetch(code), ":", line
-        print no, ":", code.name, ":", line
-      end
+      # line.slice!(/\/\/.*$/)
+      word = line.scan(/".*?"/)
+      word.each {|w|
+        code = NKF.guess(w)
+        if code != NKF::ASCII then
+          if args[:filename]
+            print "#{f}"
+            print args[:split]
+          end
+          if args[:lineno]
+            print no
+            print args[:split]
+          end
+          if args[:encode]
+            print code.name
+            print args[:split]
+          end
+          print w, "\n"
+        end
+      }
       no += 1
     end
   }
